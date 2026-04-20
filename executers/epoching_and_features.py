@@ -14,12 +14,10 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from configs import config
 
-# Создаём папку для результатов, если её нет
+
 config.EPOCHS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ------------------------------------------------------------
-# 1. Функция загрузки данных (поддержка .vhdr и .edf)
-# ------------------------------------------------------------
+
 def load_raw(subject_id, base_path):
     vhdr_files = list(base_path.glob(f"*{subject_id}*.vhdr"))
     edf_files = list(base_path.glob(f"*{subject_id}*.edf"))
@@ -31,51 +29,37 @@ def load_raw(subject_id, base_path):
     else:
         raise FileNotFoundError(f"No EEG file found for subject {subject_id}")
     
-    # Приводим в порядок типы каналов
+
     eeg_like = ['F9', 'P9', 'P10', 'F10']
     for ch in eeg_like:
         if ch in raw.ch_names:
             raw.set_channel_types({ch: 'eeg'})
-    # Не-ЭЭГ каналы (blood_pressure, GSR) можно оставить как misc или удалить
     misc_ch = ['blood_pressure', 'GSR']
     raw.drop_channels([ch for ch in misc_ch if ch in raw.ch_names])
     return raw
 
-# ------------------------------------------------------------
-# 2. Предобработка
-# ------------------------------------------------------------
+
 def preprocess_raw(raw, apply_ica=True):
-    """Фильтрация, удаление плохих каналов, референция, ICA."""
     raw.filter(l_freq=0.1, h_freq=40.0)
     raw.set_eeg_reference('average', projection=False)
     
     if apply_ica:
         ica = mne.preprocessing.ICA(n_components=20, random_state=42)
         ica.fit(raw)
-        # Автоматическое удаление артефактов EOG/ECG можно добавить
         ica.apply(raw)
     return raw
 
-# ------------------------------------------------------------
-# 3. Получение событий из аннотаций
-# ------------------------------------------------------------
+
 def get_events_from_annotations(raw, marker_list):
-    """Возвращает массив событий только для указанных маркеров."""
     events, event_id = mne.events_from_annotations(raw)
-    # Оставляем только нужные маркеры
     valid_ids = {desc: idx for desc, idx in event_id.items() if desc in marker_list}
     if not valid_ids:
         return None, None
-    # Фильтруем events
     mask = np.isin(events[:, 2], list(valid_ids.values()))
     events_filtered = events[mask]
     return events_filtered, valid_ids
 
-# ------------------------------------------------------------
-# 4. Нарезка эпох
-# ------------------------------------------------------------
 def create_epochs(raw, events, event_id, tmin, tmax, baseline, preload=True):
-    """Обёртка для mne.Epochs с отловом ошибок."""
     try:
         epochs = mne.Epochs(
             raw, events, event_id=event_id,
@@ -87,14 +71,8 @@ def create_epochs(raw, events, event_id, tmin, tmax, baseline, preload=True):
         print(f"Error creating epochs: {e}")
         return None
 
-# ------------------------------------------------------------
-# 5. Извлечение признаков (одна эпоха → словарь)
-# ------------------------------------------------------------
+
 def extract_features(epoch_data, sfreq):
-    """
-    epoch_data: array (n_channels, n_times)
-    Возвращает словарь признаков, ключи содержат имя канала.
-    """
     features = {}
     n_channels, n_times = epoch_data.shape
 
@@ -109,7 +87,7 @@ def extract_features(epoch_data, sfreq):
         ch_data = epoch_data[ch_idx]
         psd = psd_all[ch_idx]
 
-        # --- Временные признаки ---
+        #Временные признаки
         features[f'ch{ch_idx}_mean'] = np.mean(ch_data)
         features[f'ch{ch_idx}_std'] = np.std(ch_data)
         features[f'ch{ch_idx}_peak_amp'] = np.max(np.abs(ch_data))
@@ -139,7 +117,6 @@ def extract_features(epoch_data, sfreq):
         features[f'ch{ch_idx}_beta_power']  = beta_power
         features[f'ch{ch_idx}_gamma_power'] = gamma_power
 
-        # Отношение с защитой от деления на 0
         if alpha_power and not np.isnan(alpha_power) and alpha_power != 0:
             features[f'ch{ch_idx}_theta_alpha_ratio'] = theta_power / alpha_power
         else:
@@ -152,7 +129,6 @@ def extract_features(epoch_data, sfreq):
         else:
             features[f'ch{ch_idx}_peak_alpha_freq'] = np.nan
 
-        # --- Нелинейные признаки (с обработкой исключений) ---
         try:
             features[f'ch{ch_idx}_sample_entropy'] = ant.sample_entropy(ch_data)
         except:
@@ -170,29 +146,23 @@ def extract_features(epoch_data, sfreq):
         except:
             features[f'ch{ch_idx}_higuchi_fd'] = np.nan
 
-        # --- Морфологические признаки ---
         features[f'ch{ch_idx}_skewness'] = skew(ch_data)
         features[f'ch{ch_idx}_kurtosis'] = kurtosis(ch_data)
 
     return features
 
-# ------------------------------------------------------------
-# 6. Обработка одного испытуемого
-# ------------------------------------------------------------
+
 def process_subject(subject_id, raw_path, output_dir):
-    """Полный цикл для одного испытуемого."""
     print(f"Processing {subject_id}...")
-    
-    # Загрузка и препроцессинг
     raw = load_raw(subject_id, raw_path)
     raw = preprocess_raw(raw, apply_ica=True)
     sfreq = raw.info['sfreq']
     
     all_features = []      # список словарей признаков
-    labels = []            # тип события (для классификации)
-    epoch_counts = {}      # для отладки
+    labels = []            # тип события
+    epoch_counts = {}
     
-    # ---------- Фиксации ----------
+    # Фиксации 
     fix_markers = list(config.FIXATION_MARKERS.values())
     fix_events, fix_id = get_events_from_annotations(raw, fix_markers)
     if fix_events is not None and len(fix_events) > 0:
@@ -206,7 +176,6 @@ def process_subject(subject_id, raw_path, output_dir):
             data_fix = epochs_fix.get_data()  # (n_epochs, n_ch, n_times)
             for i_ep, ep_data in enumerate(data_fix):
                 feat = extract_features(ep_data, sfreq)
-                # Добавляем метку типа фиксации
                 event_desc = list(fix_id.keys())[list(fix_id.values()).index(epochs_fix.events[i_ep, 2])]
                 feat['event_type'] = event_desc
                 feat['subject'] = subject_id
@@ -219,7 +188,7 @@ def process_subject(subject_id, raw_path, output_dir):
     else:
         epoch_counts['fixation'] = 0
     
-    # ---------- Саккады (три окна) ----------
+    # Саккады
     sacc_markers = config.SACCADE_MARKERS
     sacc_events, sacc_id = get_events_from_annotations(raw, sacc_markers)
     if sacc_events is not None and len(sacc_events) > 0:
@@ -249,19 +218,16 @@ def process_subject(subject_id, raw_path, output_dir):
         for window in config.SACCADE_EPOCHS:
             epoch_counts[f'saccade_{window["name"]}'] = 0
     
-    # Превращаем в DataFrame
+    #DataFrame
     df = pd.DataFrame(all_features)
     if df.empty:
         print(f"  No epochs extracted for {subject_id}")
         return None, epoch_counts
 
-    # Определяем столбцы с признаками (исключаем метаинформацию)
     feature_cols = [c for c in df.columns if c not in ['event_type', 'subject', 'epoch_category']]
-
-    # Заменяем бесконечности на NaN
     df[feature_cols] = df[feature_cols].replace([np.inf, -np.inf], np.nan)
 
-    # Заполняем NaN: если весь столбец пуст → 0, иначе средним
+    # Заполняем NaN: если весь столбец пуст = 0, иначе средним
     for col in feature_cols:
         if df[col].isnull().all():
             df[col] = 0.0
@@ -271,48 +237,40 @@ def process_subject(subject_id, raw_path, output_dir):
     # Нормализация
     scaler = StandardScaler()
     df[feature_cols] = scaler.fit_transform(df[feature_cols])
-    
-    # Сохраняем в CSV
+
     out_file = output_dir / f"{subject_id}_features.csv"
     df.to_csv(out_file, index=False)
     print(f"  Saved {len(df)} epochs to {out_file}")
     print(f"  Epoch counts: {epoch_counts}")
     return df, epoch_counts
 
-# ------------------------------------------------------------
-# 7. Главная функция – обработка всех файлов в папке
-# ------------------------------------------------------------
+
 def main():
-    # Находим все уникальные идентификаторы испытуемых по именам файлов
     vhdr_files = list(config.MAIN_RDATA_DIR.glob("*.vhdr"))
     edf_files = list(config.MAIN_RDATA_DIR.glob("*.edf"))
     all_files = vhdr_files + edf_files
     
-    # Извлекаем идентификатор (например, "ava1209") из имени файла
-    # Предполагаем, что имя содержит что-то вроде "..._OCD_ava1209.edf_1_HC_corr_prepro..."
+
     subjects = set()
     for f in all_files:
         name = f.stem
-        # Простой способ: ищем часть после "OCD_" и до следующего подчеркивания или точки
         parts = name.split('_')
         for part in parts:
-            if part.startswith('ava'):   # по примеру
+            if part.startswith('ava'):  # по примеру
                 subjects.add(part)
                 break
         else:
-            # Если не нашли, используем имя файла без расширения как ID
             subjects.add(f.stem)
     
     print(f"Found {len(subjects)} subjects: {subjects}")
     
-    # Обрабатываем каждого
-    all_dfs = []
+
+    #all_dfs = []
     for subj in tqdm(sorted(subjects)):
         df, _ = process_subject(subj, config.MAIN_RDATA_DIR, config.EPOCHS_DIR)
-        if df is not None:
-            all_dfs.append(df)
+        #if df is not None:
+            #all_dfs.append(df)
     
-    # Объединяем все данные в один файл (опционально)
     '''
     if all_dfs:
         combined = pd.concat(all_dfs, ignore_index=True)

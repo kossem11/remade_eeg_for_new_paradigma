@@ -1,18 +1,18 @@
- Epoch counts: {'fixation': 396, 'saccade_window_1': 390, 'saccade_window_2': 391, 'saccade_window_3': 392}
- 49%|███████████████████████████████████████████████████▋                                                      | 38/78 [2:38:09<2:39:16, 238.90s/it]Processing open_closed_eyes_OCD_vvu1007.edf_3_HC_corr_prepro...
-Extracting parameters from /run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/raw_data/Main_research/open_closed_eyes_OCD_vvu1007.edf_3_HC_corr_prepro.vhdr...
- 49%|███████████████████████████████████████████████████▋                                                      | 38/78 [2:38:09<2:46:28, 249.72s/it]
+freqs, psd_all = welch(epoch_data, fs=sfreq, nperseg=int(sfreq*2), axis=-1)
+/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py:118: DeprecationWarning: `trapz` is deprecated. Use `trapezoid` instead, or one of the numerical integration functions in `scipy.integrate`.
+  features[f'ch{ch_idx}_auc'] = np.trapz(np.abs(ch_data))
+  Saved 1516 epochs to /run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/procesed/epochs/prosaccade_open_closed_eyes_OCD_nt251104.edf_1_HC_corr_prepro_features.csv
+  Epoch counts: {'fixation': 400, 'saccade_window_1': 372, 'saccade_window_2': 372, 'saccade_window_3': 372}
+ 74%|██████████████████████████████████████████████████████████████████████████████▍                           | 57/77 [4:01:34<1:25:41, 257.08s/it]Processing prosaccade_open_closed_eyes_OCD_nt272304.edf_1_HC_corr_prepro...
+Extracting parameters from /run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/raw_data/Main_research/prosaccade_open_closed_eyes_OCD_nt272304.edf_1_HC_corr_prepro.vhdr...
+ 74%|██████████████████████████████████████████████████████████████████████████████▍                           | 57/77 [4:01:34<1:24:45, 254.28s/it]
 Traceback (most recent call last):
-  File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 326, in <module>
-    main()
-    ~~~~^^
-  File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 310, in main
-    df, _ = process_subject(subj, config.MAIN_RDATA_DIR, config.EPOCHS_DIR)
-            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 329, in <module>
+  File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 311, in main
   File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 187, in process_subject
-    raw = load_raw(subject_id, raw_path)
+    epoch_counts['fixation'] = 0
   File "/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/executers/epoching_and_features.py", line 28, in load_raw
-    raw = mne.io.read_raw_brainvision(vhdr_files[0], preload=True)
+    raw = mne.io.read_raw_edf(edf_files[0], preload=True)
   File "/home/kossem/.local/lib/python3.13/site-packages/mne/io/brainvision/brainvision.py", line 999, in read_raw_brainvision
     return RawBrainVision(
         vhdr_fname=vhdr_fname,
@@ -26,5 +26,4 @@ Traceback (most recent call last):
   File "/home/kossem/.local/lib/python3.13/site-packages/mne/io/brainvision/brainvision.py", line 567, in _get_hdr_info
     with open(mrk_fname) as tmp_mrk_f:
          ~~~~^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/raw_data/Main_research/open_closed_eyes_OCD_vvu1007.edf_3_HC_corr_prepro.vmrk'
-    /run/me/k/5/remade_eeg_for_new_paradigma    main !1 ?4   
+FileNotFoundError: [Errno 2] No such file or directory: '/run/media/kossem/5443-362E/remade_eeg_for_new_paradigma/raw_data/Main_research/prosaccade_open_closed_eyes_OCD_nt272304.edf_1_OCD_corr_prepro.vmrk'
