@@ -4,3 +4,5 @@
 *.vhdr
 *.eeg
 *.vmrk
+*.sh
+
