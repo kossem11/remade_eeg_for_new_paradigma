@@ -1,0 +1,206 @@
+При окне саккад 1
+
+Загрузка данных...
+Загружено строк: 56885
+Распределение групп:
+group
+HC     32209
+OCD    24676
+Name: count, dtype: int64
+Размер X: (56885, 281)
+
+========================================
+RandomForest
+========================================
+Accuracy: 0.7407
+Confusion matrix:
+[[5911  531]
+ [2419 2516]]
+
+Classification report:
+              precision    recall  f1-score   support
+
+          HC       0.71      0.92      0.80      6442
+         OCD       0.83      0.51      0.63      4935
+
+    accuracy                           0.74     11377
+   macro avg       0.77      0.71      0.72     11377
+weighted avg       0.76      0.74      0.73     11377
+
+
+========================================
+LogisticRegression
+========================================
+Accuracy: 0.5901
+Confusion matrix:
+[[5427 1015]
+ [3649 1286]]
+
+Classification report:
+              precision    recall  f1-score   support
+
+          HC       0.60      0.84      0.70      6442
+         OCD       0.56      0.26      0.36      4935
+
+    accuracy                           0.59     11377
+   macro avg       0.58      0.55      0.53     11377
+weighted avg       0.58      0.59      0.55     11377
+
+
+=== Важность стимулов (Random Forest) ===
+event_Stimulus/S 51: 0.000237
+event_Saccade/S155: 0.000213
+event_Stimulus/S 21: 0.000212
+event_Saccade/S154: 0.000207
+event_Stimulus/S 31: 0.000188
+event_Stimulus/S 41: 0.000187
+event_Stimulus/S 11: 0.000183
+event_Saccade/S145: 0.000172
+event_Saccade/S135: 0.000160
+event_Saccade/S134: 0.000153
+event_Saccade/S124: 0.000141
+event_Saccade/S144: 0.000139
+event_Saccade/S115: 0.000132
+event_Saccade/S114: 0.000126
+event_Saccade/S156: 0.000124
+event_Saccade/S125: 0.000120
+event_Saccade/S126: 0.000090
+event_Saccade/S146: 0.000072
+event_Saccade/S116: 0.000069
+event_Saccade/S136: 0.000060
+event_Saccade/S157: 0.000028
+event_Saccade/S117: 0.000018
+event_Saccade/S127: 0.000012
+event_Saccade/S137: 0.000011
+event_Saccade/S147: 0.000008
+
+=== Коэффициенты логистической регрессии для стимулов ===
+event_Stimulus/S 51: -0.087928
+event_Stimulus/S 31: -0.076304
+event_Saccade/S155: 0.075369
+event_Stimulus/S 21: -0.073652
+event_Stimulus/S 41: -0.069094
+event_Stimulus/S 11: -0.068614
+event_Saccade/S135: 0.058630
+event_Saccade/S156: 0.055783
+event_Saccade/S154: 0.054258
+event_Saccade/S126: 0.049224
+event_Saccade/S146: 0.046344
+event_Saccade/S136: 0.039571
+event_Saccade/S145: 0.039323
+event_Saccade/S116: 0.039180
+event_Saccade/S115: 0.039164
+event_Saccade/S125: 0.038167
+event_Saccade/S134: 0.033950
+event_Saccade/S124: 0.029054
+event_Saccade/S144: 0.026764
+event_Saccade/S114: 0.022521
+event_Saccade/S127: 0.019829
+event_Saccade/S147: 0.018466
+event_Saccade/S137: -0.010495
+event_Saccade/S117: 0.009624
+event_Saccade/S157: 0.005767
+
+
+При окне саккад 2
+
+Загрузка данных...
+Загружено строк: 56919
+Распределение групп:
+group
+HC     32212
+OCD    24707
+Name: count, dtype: int64
+Размер X: (56919, 281)
+
+========================================
+RandomForest
+========================================
+Accuracy: 0.7339
+Confusion matrix:
+[[5953  490]
+ [2539 2402]]
+
+Classification report:
+              precision    recall  f1-score   support
+
+          HC       0.70      0.92      0.80      6443
+         OCD       0.83      0.49      0.61      4941
+
+    accuracy                           0.73     11384
+   macro avg       0.77      0.71      0.71     11384
+weighted avg       0.76      0.73      0.72     11384
+
+
+========================================
+LogisticRegression
+========================================
+Accuracy: 0.5764
+Confusion matrix:
+[[5638  805]
+ [4017  924]]
+
+Classification report:
+              precision    recall  f1-score   support
+
+          HC       0.58      0.88      0.70      6443
+         OCD       0.53      0.19      0.28      4941
+
+    accuracy                           0.58     11384
+   macro avg       0.56      0.53      0.49     11384
+weighted avg       0.56      0.58      0.52     11384
+
+
+=== Важность стимулов (Random Forest) ===
+event_Saccade/S154: 0.000195
+event_Stimulus/S 51: 0.000181
+event_Stimulus/S 31: 0.000176
+event_Stimulus/S 11: 0.000168
+event_Stimulus/S 21: 0.000162
+event_Saccade/S155: 0.000161
+event_Stimulus/S 41: 0.000159
+event_Saccade/S134: 0.000151
+event_Saccade/S115: 0.000132
+event_Saccade/S124: 0.000131
+event_Saccade/S145: 0.000125
+event_Saccade/S125: 0.000123
+event_Saccade/S135: 0.000113
+event_Saccade/S144: 0.000112
+event_Saccade/S156: 0.000103
+event_Saccade/S114: 0.000103
+event_Saccade/S146: 0.000079
+event_Saccade/S116: 0.000074
+event_Saccade/S136: 0.000072
+event_Saccade/S126: 0.000067
+event_Saccade/S157: 0.000026
+event_Saccade/S117: 0.000023
+event_Saccade/S147: 0.000014
+event_Saccade/S127: 0.000013
+event_Saccade/S137: 0.000007
+
+=== Коэффициенты логистической регрессии для стимулов ===
+event_Stimulus/S 51: -0.106539
+event_Saccade/S155: 0.081612
+event_Stimulus/S 31: -0.069158
+event_Stimulus/S 21: -0.068408
+event_Stimulus/S 41: -0.065914
+event_Stimulus/S 11: -0.064626
+event_Saccade/S135: 0.053668
+event_Saccade/S146: 0.052099
+event_Saccade/S156: 0.048572
+event_Saccade/S126: 0.048123
+event_Saccade/S154: 0.047884
+event_Saccade/S145: 0.044419
+event_Saccade/S125: 0.041958
+event_Saccade/S116: 0.038195
+event_Saccade/S134: 0.037587
+event_Saccade/S115: 0.035667
+event_Saccade/S136: 0.035376
+event_Saccade/S124: 0.034226
+event_Saccade/S114: 0.034033
+event_Saccade/S144: 0.025256
+event_Saccade/S147: 0.018209
+event_Saccade/S127: 0.017990
+event_Saccade/S137: -0.015663
+event_Saccade/S117: 0.008390
+event_Saccade/S157: 0.006799
