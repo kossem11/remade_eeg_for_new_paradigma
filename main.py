@@ -1,7 +1,7 @@
 """
 Классификация HC/OCD.
 Используются:
-- все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_1)
+- все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_x)
 - признаки: _mean, _std, _peak_amp, _peak_latency + event_type
 - модели: Random Forest, SVM, Logistic Regression
 - вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR и importance RF)
@@ -21,7 +21,7 @@ from configs.config import PROCESED_DIR
 
 
 EPOCHS_DIR = PROCESED_DIR / "epochs"           
-SACCADE_WINDOW = "saccade_window_2"            #саккадическое окно
+SACCADE_WINDOW = "saccade_window_1" #саккадическое окно
 FEATURE_SUFFIXES = ["_mean", "_std", "_peak_amp", "_peak_latency"]
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
@@ -94,7 +94,12 @@ def train_evaluate_models(X, y, models):
             trained_models[name] = (model, scaler)
         else:
             model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
+            #y_pred = model.predict(X_test)
+            
+            y_probs = model.predict_proba(X_test)[:, 1]
+            threshold = 0.45 # порог HC/Ocd
+            y_pred = (y_probs >= threshold).astype(int)
+
             trained_models[name] = (model, None)
         
         acc = accuracy_score(y_test, y_pred)
@@ -145,7 +150,7 @@ if __name__ == "__main__":
     print(f"Размер X: {X.shape}")
 
     models = {
-        "RandomForest": RandomForestClassifier(n_estimators=100, random_state=RANDOM_STATE),
+        "RandomForest": RandomForestClassifier(n_estimators=150, random_state=RANDOM_STATE),
         #"SVM": SVC(kernel="rbf", random_state=RANDOM_STATE),
         "LogisticRegression": LogisticRegression(max_iter=1000, random_state=RANDOM_STATE)
     }
@@ -161,3 +166,4 @@ if __name__ == "__main__":
     lr_model = trained_models["LogisticRegression"][0]
     print_stimulus_coefficients_lr(lr_model, feature_names)
     
+    #SVM

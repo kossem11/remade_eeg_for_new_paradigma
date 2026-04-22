@@ -1,3 +1,12 @@
+"""
+Классификация HC/OCD.
+Используются:
+- все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_x)
+- признаки: _mean, _std, _peak_amp, _peak_latency + event_type
+- модели: Random Forest, Logistic Regression
+- вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR и importance RF)
+"""
+
 При окне саккад 1
 
 Загрузка данных...
