@@ -2,7 +2,7 @@
 Классификация HC/OCD.
 Используются:
 - все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_x)
-- признаки: _mean, _std, _peak_amp, _peak_latency + event_type
+- признаки: _mean, _std, _peak_amp, _peak_latency, _auc + event_type
 - модели: Random Forest, SVM, Logistic Regression
 - вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR и importance RF)
 """
@@ -17,12 +17,12 @@ from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from configs.config import PROCESED_DIR
+from configs.config import EPOCHS_DIR
 
 
-EPOCHS_DIR = PROCESED_DIR / "epochs"           
+#EPOCHS_DIR = PROCESED_DIR / "epochs"           
 SACCADE_WINDOW = "saccade_window_1" #саккадическое окно
-FEATURE_SUFFIXES = ["_mean", "_std", "_peak_amp", "_peak_latency"]
+FEATURE_SUFFIXES = ["_mean", "_std", "_peak_amp", "_peak_latency", "_auc"] # фитчи с каналов
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 

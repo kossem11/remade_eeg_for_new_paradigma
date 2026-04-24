@@ -6,6 +6,7 @@ RAW_DATA_DIR = BASE_DIR / "raw_data"
 PROCESED_DIR = BASE_DIR / "procesed"
 LOADERS_DIR = BASE_DIR / "loaders"
 EXECUTERS_DIR = BASE_DIR / "executers"
+EPOCHS_DIR = PROCESED_DIR / "epochs" 
 
 MAIN_RDATA_DIR = RAW_DATA_DIR / "Main_research"
 OPEN_CLOSED_DIR = RAW_DATA_DIR / "Opened_closed_eyes"
