@@ -20,8 +20,14 @@ from sklearn.inspection import permutation_importance
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from configs.config import EPOCHS_DIR
 
-from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
+#from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
 
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+    print("XGBoost не установлен")
 
 #EPOCHS_DIR = PROCESED_DIR / "epochs"           
 SACCADE_WINDOW = "saccade_window_1" #саккадическое окно
@@ -141,6 +147,20 @@ def print_stimulus_coefficients_lr(model, feature_names, scaler=None):
     for idx, name in sorted_events:
         print(f"{name}: {coef[idx]:.6f}")
 
+def print_stimulus_importance_xgb(model, feature_names):
+    """Feature importance для XGBoost (как у Random Forest)"""
+    if not hasattr(model, 'feature_importances_'):
+        print("Модель XGBoost не имеет feature_importances_")
+        return
+    importances = model.feature_importances_
+    event_indices = [(i, name) for i, name in enumerate(feature_names) if name.startswith("event_")]
+    if not event_indices:
+        print("Нет признаков event_* для анализа важности.")
+        return
+    print("\n=== Важность стимулов (XGBoost) ===")
+    for idx, name in sorted(event_indices, key=lambda x: importances[x[0]], reverse=True):
+        print(f"{name}: {importances[idx]:.6f}")
+
 """
 def print_stimulus_importance_svm(model, X_test, y_test, feature_names):
     perm_importance = permutation_importance(
@@ -156,6 +176,40 @@ def print_stimulus_importance_svm(model, X_test, y_test, feature_names):
         print(f"{name}: {importances[idx]:.6f}")
 """
 
+def optimize_xgboost(X_train, y_train, X_test, y_test):
+    """Подбор гиперпараметров XGBoost с помощью GridSearchCV"""
+    from sklearn.model_selection import GridSearchCV
+    
+    param_grid = {
+        'n_estimators': [100, 200],
+        'max_depth': [4, 6, 8],
+        'learning_rate': [0.01, 0.05, 0.1],
+    }
+    
+    xgb_base = xgb.XGBClassifier(
+        random_state=RANDOM_STATE,
+        use_label_encoder=False,
+        eval_metric='logloss',
+        n_jobs=-1
+    )
+    
+    grid = GridSearchCV(
+        xgb_base, param_grid, cv=5,
+        scoring='accuracy', n_jobs=-1
+    )
+    grid.fit(X_train, y_train)
+    
+    print("\n=== Оптимизированный XGBoost ===")
+    print(f"Лучшие параметры: {grid.best_params_}")
+    print(f"Лучшая кросс-валидационная точность: {grid.best_score_:.4f}")
+    
+    best = grid.best_estimator_
+    y_pred = best.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+    print(f"Тестовая точность: {acc:.4f}")
+    print(classification_report(y_test, y_pred, target_names=["HC", "OCD"]))
+    
+    return best
 
 if __name__ == "__main__":
 
@@ -166,22 +220,44 @@ if __name__ == "__main__":
     X, y = prepare_features_labels(full_data)
     print(f"Размер X: {X.shape}")
 
-  
     models = {
-        "RandomForest": RandomForestClassifier(n_estimators=150, random_state=RANDOM_STATE, n_jobs=-1)
-        
-        #,"SVM": OptimizedSVM(
-        #    n_jobs=-1,          
-        #    kernel='linear',       
-        #    C=1.0,              
-        #    gamma='scale',      
-        #    cache_size=3000      
-        #),
+        "RandomForest": RandomForestClassifier(n_estimators=200, random_state=RANDOM_STATE, n_jobs=-1)
     }
+    
+    if XGBOOST_AVAILABLE:
+        models["XGBoost"] = xgb.XGBClassifier(
+            n_estimators=200,
+            max_depth=8,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=RANDOM_STATE,
+            use_label_encoder=False,
+            eval_metric='logloss',
+            n_jobs=-1
+        )
 
     results, trained_models, splits = train_evaluate_models(X, y, models)
     X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled = splits
     feature_names = X.columns.tolist()
+
+    #RandomForest
+    if "RandomForest" in trained_models:
+        rf_model = trained_models["RandomForest"][0]
+        print_stimulus_importance_rf(rf_model, feature_names)
+    
+    #XGBoost
+    if "XGBoost" in trained_models:
+        xgb_model = trained_models["XGBoost"][0]
+        print_stimulus_importance_xgb(xgb_model, feature_names)
+
+    '''
+    # (Опционально) подбор гиперпараметров XGBoost
+    if XGBOOST_AVAILABLE:
+        print("\n" + "="*40)
+        print("Запуск оптимизации XGBoost...")
+        best_xgb = optimize_xgboost(X_train, y_train, X_test, y_test)
+    '''
 
     '''
     # svm
