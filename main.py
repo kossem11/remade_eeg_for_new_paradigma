@@ -4,7 +4,7 @@
 - все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_x)
 - признаки: _mean, _std, _peak_amp, _peak_latency, _auc + event_type
 - модели: Random Forest, SVM, Logistic Regression
-- вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR и importance RF)
+- вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR, importance RF и permutation importance для SVM)
 """
 import sys
 from pathlib import Path
@@ -16,8 +16,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.inspection import permutation_importance
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from configs.config import EPOCHS_DIR
+
+from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
 
 
 #EPOCHS_DIR = PROCESED_DIR / "epochs"           
@@ -138,6 +141,20 @@ def print_stimulus_coefficients_lr(model, feature_names, scaler=None):
     for idx, name in sorted_events:
         print(f"{name}: {coef[idx]:.6f}")
 
+"""
+def print_stimulus_importance_svm(model, X_test, y_test, feature_names):
+    perm_importance = permutation_importance(
+        model, X_test, y_test, n_repeats=10, random_state=42, scoring='accuracy'
+    )
+    importances = perm_importance.importances_mean
+    event_indices = [(i, name) for i, name in enumerate(feature_names) if name.startswith("event_")]
+    if not event_indices:
+        print("Нет признаков event_* для анализа важности.")
+        return
+    print("\n=== Важность стимулов (SVM, permutation importance) ===")
+    for idx, name in sorted(event_indices, key=lambda x: importances[x[0]], reverse=True):
+        print(f"{name}: {importances[idx]:.6f}")
+"""
 
 
 if __name__ == "__main__":
@@ -149,21 +166,35 @@ if __name__ == "__main__":
     X, y = prepare_features_labels(full_data)
     print(f"Размер X: {X.shape}")
 
+  
     models = {
-        "RandomForest": RandomForestClassifier(n_estimators=150, random_state=RANDOM_STATE),
-        #"SVM": SVC(kernel="rbf", random_state=RANDOM_STATE),
-        "LogisticRegression": LogisticRegression(max_iter=1000, random_state=RANDOM_STATE)
+        "RandomForest": RandomForestClassifier(n_estimators=150, random_state=RANDOM_STATE, n_jobs=-1)
+        
+        #,"SVM": OptimizedSVM(
+        #    n_jobs=-1,          
+        #    kernel='linear',       
+        #    C=1.0,              
+        #    gamma='scale',      
+        #    cache_size=3000      
+        #),
     }
-    
 
     results, trained_models, splits = train_evaluate_models(X, y, models)
     X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled = splits
     feature_names = X.columns.tolist()
 
+    '''
+    # svm
     rf_model = trained_models["RandomForest"][0]
     print_stimulus_importance_rf(rf_model, feature_names)
-
-    lr_model = trained_models["LogisticRegression"][0]
-    print_stimulus_coefficients_lr(lr_model, feature_names)
-    
-    #SVM
+    svm_model = trained_models["SVM"][0]  # Получаем модель
+    importance_df = analyze_stimulus_impact(
+        svm_model, 
+        X_test,      
+        y_test, 
+        feature_names,
+        top_k=20
+    )
+    if importance_df is not None:
+        importance_df.to_csv("svm_stimulus_importance.csv", index=False)
+        print("\n✓ Результаты сохранены в 'svm_stimulus_importance.csv'")'''
