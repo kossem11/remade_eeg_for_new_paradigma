@@ -30,7 +30,7 @@ except ImportError:
     print("XGBoost не установлен")
 
 #EPOCHS_DIR = PROCESED_DIR / "epochs"           
-SACCADE_WINDOW = "saccade_window_1" #саккадическое окно
+SACCADE_WINDOW = "saccade_window_2" #саккадическое окно
 FEATURE_SUFFIXES = ["_mean", "_std", "_peak_amp", "_peak_latency", "_auc"] # фитчи с каналов
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
