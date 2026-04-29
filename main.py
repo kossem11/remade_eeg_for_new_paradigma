@@ -19,9 +19,11 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 from sklearn.inspection import permutation_importance
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from configs.config import EPOCHS_DIR
+import matplotlib.pyplot as plt
+import mne
 
 #from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
-
+MNE_AVAILABLE = True
 try:
     import xgboost as xgb
     XGBOOST_AVAILABLE = True
@@ -31,7 +33,7 @@ except ImportError:
 
 #EPOCHS_DIR = PROCESED_DIR / "epochs"           
 SACCADE_WINDOW = "saccade_window_2" #саккадическое окно
-FEATURE_SUFFIXES = ["_mean", "_std", "_peak_amp", "_peak_latency", "_auc"] # фитчи с каналов
+FEATURE_SUFFIXES = ["_mean", "_std", "_auc"] # фитчи с каналов "_mean", "_std", "_peak_amp", "_peak_latency", "_auc"
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 
@@ -87,8 +89,7 @@ def train_evaluate_models(X, y, models):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
     )
-    
-    # Масштабирование для SVM и LR
+
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
@@ -211,6 +212,90 @@ def optimize_xgboost(X_train, y_train, X_test, y_test):
     
     return best
 
+def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
+
+    importances = model.feature_importances_
+    ch_imp = {}
+    for name, imp in zip(feature_names, importances):
+        if name.startswith(channel_prefix):
+            # Извлекаем номер канала из "ch123_mean"
+            parts = name.split('_')
+            ch_str = parts[0]          # "ch123"
+            ch_num = int(ch_str[len(channel_prefix):])  # 123
+            ch_imp[ch_num] = ch_imp.get(ch_num, 0.0) + imp
+    return ch_imp
+
+def plot_channel_importance_topomap(ch_importance, model_name, n_channels=64, 
+                                    montage_name='GSN-HydroCel-64_1.0', save_path=None):
+
+ 
+    importance_list = [ch_importance.get(i, 0.0) for i in range(n_channels)]
+    
+    # Загружаем montage и координаты
+    try:
+        montage = mne.channels.make_standard_montage(montage_name)
+        positions = montage.get_positions()['ch_pos']
+        ch_names = list(positions.keys())[:n_channels]
+        pos_2d = np.array([positions[name][:2] for name in ch_names])
+    except Exception as e:
+        print(f"Ошибка загрузки montage: {e}")
+        # Fallback barplot
+        plt.figure(figsize=(12,5))
+        ch_list = sorted(ch_importance.keys())
+        imp_vals = [ch_importance[c] for c in ch_list]
+        plt.bar(ch_list, imp_vals)
+        plt.xlabel('Channel index')
+        plt.ylabel('Summed feature importance')
+        plt.title(f'{model_name} - Channel importance (barplot)')
+        if save_path:
+            bar_path = str(save_path).replace('.png', '_bar.png')
+            plt.savefig(bar_path)
+            print(f"Сохранён barplot: {bar_path}")
+        plt.show()
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    try:
+        result = mne.viz.plot_topomap(importance_list, pos_2d, axes=ax, show=False,
+                                      names=ch_names, cmap='RdBu_r')
+    except Exception as e:
+        print(f"Ошибка при построении топоплота: {e}")
+        result = mne.viz.plot_topomap(importance_list, pos_2d, axes=ax, show=False, cmap='RdBu_r')
+    
+    if isinstance(result, tuple):
+        im = result[0]
+    else:
+        im = result
+
+    if hasattr(im, 'cmap'):
+        cbar = plt.colorbar(im, ax=ax, label='Summed Feature Importance')
+    else:
+        print("Не удалось создать colorbar, но график построен.")
+    
+    ax.set_title(f'{model_name} - Channel importance (topographic map)')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(str(save_path), dpi=150)
+        print(f"Сохранено: {save_path}")
+    plt.show()
+
+def plot_channel_importance_for_models(trained_models, feature_names, 
+                                       n_channels=64, save_dir=None):
+
+    for name, (model, _) in trained_models.items():
+        if hasattr(model, 'feature_importances_'):
+            ch_imp = aggregate_channel_importance(model, feature_names)
+            if ch_imp:
+                save_path = None
+                if save_dir:
+                    save_path = Path(save_dir) / f"{name}_channel_importance.png"
+                plot_channel_importance_topomap(ch_imp, name, n_channels=n_channels,
+                                                save_path=save_path)
+            else:
+                print(f"Для модели {name} не найдены признаки каналов.")
+
 if __name__ == "__main__":
 
     print("Загрузка данных...")
@@ -250,6 +335,17 @@ if __name__ == "__main__":
     if "XGBoost" in trained_models:
         xgb_model = trained_models["XGBoost"][0]
         print_stimulus_importance_xgb(xgb_model, feature_names)
+
+    # Параметры: у вас 64 канала (ch0..ch63)
+    N_CHANNELS = 64
+    
+    # Построим карты для RandomForest и XGBoost
+    # Создадим папку для сохранения, например 'topomaps'
+    save_dir = Path(__file__).parent / "topomaps"
+    save_dir.mkdir(exist_ok=True)
+    
+    plot_channel_importance_for_models(trained_models, feature_names,
+                                       n_channels=N_CHANNELS, save_dir=save_dir)
 
     '''
     # (Опционально) подбор гиперпараметров XGBoost
