@@ -21,15 +21,10 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from configs.config import EPOCHS_DIR
 import matplotlib.pyplot as plt
 import mne
-
+import xgboost as xgb
 #from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
 MNE_AVAILABLE = True
-try:
-    import xgboost as xgb
-    XGBOOST_AVAILABLE = True
-except ImportError:
-    XGBOOST_AVAILABLE = False
-    print("XGBoost не установлен")
+
 
 #EPOCHS_DIR = PROCESED_DIR / "epochs"           
 SACCADE_WINDOW = "saccade_window_2" #саккадическое окно
@@ -226,12 +221,12 @@ def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
     return ch_imp
 
 def plot_channel_importance_topomap(ch_importance, model_name, n_channels=64, 
-                                    montage_name='GSN-HydroCel-64_1.0', save_path=None):
+                                    montage_name='biosemi64', save_path=None): # biosemi64 GSN-HydroCel-64_1.0
 
  
     importance_list = [ch_importance.get(i, 0.0) for i in range(n_channels)]
     
-    # Загружаем montage и координаты
+    # montage и координаты
     try:
         montage = mne.channels.make_standard_montage(montage_name)
         positions = montage.get_positions()['ch_pos']
@@ -309,18 +304,18 @@ if __name__ == "__main__":
         "RandomForest": RandomForestClassifier(n_estimators=200, random_state=RANDOM_STATE, n_jobs=-1)
     }
     
-    if XGBOOST_AVAILABLE:
-        models["XGBoost"] = xgb.XGBClassifier(
-            n_estimators=200,
-            max_depth=8,
-            learning_rate=0.1,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=RANDOM_STATE,
-            use_label_encoder=False,
-            eval_metric='logloss',
-            n_jobs=-1
-        )
+    
+    models["XGBoost"] = xgb.XGBClassifier(
+        n_estimators=200,
+        max_depth=8,
+        learning_rate=0.1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=RANDOM_STATE,
+        use_label_encoder=False,
+        eval_metric='logloss',
+        n_jobs=-1
+    )
 
     results, trained_models, splits = train_evaluate_models(X, y, models)
     X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled = splits
@@ -336,11 +331,8 @@ if __name__ == "__main__":
         xgb_model = trained_models["XGBoost"][0]
         print_stimulus_importance_xgb(xgb_model, feature_names)
 
-    # Параметры: у вас 64 канала (ch0..ch63)
+    # Параметры:64 канала (ch0..ch63) 
     N_CHANNELS = 64
-    
-    # Построим карты для RandomForest и XGBoost
-    # Создадим папку для сохранения, например 'topomaps'
     save_dir = Path(__file__).parent / "topomaps"
     save_dir.mkdir(exist_ok=True)
     
