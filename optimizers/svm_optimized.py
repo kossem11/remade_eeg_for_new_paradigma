@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler
 from joblib import Parallel, delayed
 import multiprocessing
 import os
@@ -29,7 +28,6 @@ class ParallelSVMEnsemble:
         os.environ["OPENBLAS_NUM_THREADS"] = "1"
         os.environ["MKL_NUM_THREADS"] = "1"
         
-        self.scaler = StandardScaler()
         self.models = []
         self.feature_names = None
         
@@ -62,14 +60,13 @@ class ParallelSVMEnsemble:
         print(f"Параметры SVM: kernel={self.kernel}, {self.kwargs}")
         
         self.feature_names = feature_names if feature_names is not None else [f"feature_{i}" for i in range(X.shape[1])]
-        X_scaled = self.scaler.fit_transform(X)
 
         if hasattr(y, 'values'):
             y_array = y.values
         else:
             y_array = y
 
-        n_samples = len(X_scaled)
+        n_samples = len(X)
         subsample_size = int(n_samples * self.subsample_ratio)
         
         np.random.seed(self.random_state)
@@ -79,7 +76,7 @@ class ParallelSVMEnsemble:
             bootstrap_indices.append(indices)
         
         self.models = Parallel(n_jobs=self.n_jobs, backend='loky', verbose=10)(
-            delayed(self._train_single_svm)(X_scaled, y_array, i, bootstrap_indices[i])
+            delayed(self._train_single_svm)(X, y_array, i, bootstrap_indices[i])
             for i in range(self.n_estimators)
         )
         
@@ -90,10 +87,9 @@ class ParallelSVMEnsemble:
         if not self.models:
             raise ValueError("Модель не обучена. Сначала вызовите fit()")
         
-        X_scaled = self.scaler.transform(X)
         predictions = []
         for model in self.models:
-            pred = model.predict(X_scaled)
+            pred = model.predict(X)
             predictions.append(pred)
 
         predictions_array = np.array(predictions)
@@ -105,12 +101,10 @@ class ParallelSVMEnsemble:
         if not self.models:
             raise ValueError("Модель не обучена. Сначала вызовите fit()")
         
-        X_scaled = self.scaler.transform(X)
-        
         probas = []
         for model in self.models:
             if hasattr(model, 'predict_proba'):
-                proba = model.predict_proba(X_scaled)
+                proba = model.predict_proba(X)
                 probas.append(proba)
         
         if probas:
@@ -125,8 +119,6 @@ class ParallelSVMEnsemble:
     def compute_permutation_importance(self, X, y, n_repeats=10):
         print(f"\nВычисляем permutation importance для ансамбля...")
         
-        X_scaled = self.scaler.transform(X)
-        
         if hasattr(y, 'values'):
             y_array = y.values
         else:
@@ -135,7 +127,7 @@ class ParallelSVMEnsemble:
 
         def importance_for_model(model):
             return permutation_importance(
-                model, X_scaled, y_array,
+                model, X, y_array,
                 n_repeats=n_repeats,
                 random_state=42,
                 scoring='accuracy',
