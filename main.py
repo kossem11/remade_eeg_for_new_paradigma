@@ -3,14 +3,14 @@
 Используются:
 - все эпохи, кроме саккад (saccade_window_*), и одно выбранное окно саккад (saccade_window_x)
 - признаки: _mean, _std, _peak_amp, _peak_latency, _auc + event_type
-- модели: Random Forest, SVM, Logistic Regression
-- вывод accuracy, confusion matrix и важности стимулов (коэффициенты LR, importance RF и permutation importance для SVM)
+- модели: Random Forest, SVM, Logistic Regression, XGBoost
+- вывод accuracy, confusion matrix и важности стимулов
 """
 import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
@@ -22,19 +22,17 @@ from configs.config import EPOCHS_DIR
 import matplotlib.pyplot as plt
 import mne
 import xgboost as xgb
-#from optimizers.svm_optimized import OptimizedSVM, ParallelSVMEnsemble, Parallel
+
 MNE_AVAILABLE = True
 
-
-#EPOCHS_DIR = PROCESED_DIR / "epochs"           
-SACCADE_WINDOW = "saccade_window_2" #саккадическое окно
-FEATURE_SUFFIXES = ["_mean", "_std", "_auc"] # фитчи с каналов "_mean", "_std", "_peak_amp", "_peak_latency", "_auc"
+# EPOCHS_DIR = PROCESED_DIR / "epochs"           
+SACCADE_WINDOW = "saccade_window_2" # саккадическое окно
+FEATURE_SUFFIXES = ["_mean", "_std", "_auc"] # фитчи с каналов 
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 
 
 def load_and_filter_data(data_dir, saccade_window):
-
     all_data = []
     for file_path in data_dir.glob("*.csv"):
         name = file_path.stem
@@ -59,8 +57,12 @@ def load_and_filter_data(data_dir, saccade_window):
                         if any(col.endswith(suf) for suf in FEATURE_SUFFIXES)]
         feature_cols.append("event_type")
         
+        # Извлекаем subject ID: если есть колонка 'subject', берем её, иначе - имя файла
+        subject_id = df_filtered["subject"].iloc[0] if "subject" in df_filtered.columns else name
+        
         X_part = df_filtered[feature_cols].copy()
         X_part["group"] = group
+        X_part["subject"] = subject_id # Сохраняем ID субъекта
         all_data.append(X_part)
     
     if not all_data:
@@ -70,20 +72,27 @@ def load_and_filter_data(data_dir, saccade_window):
     return full_data
 
 
-
 def prepare_features_labels(full_data):
-    #  one-hot encoding для event_type.
+    # one-hot encoding для event_type.
     y = (full_data["group"] == "OCD").astype(int)
-    X = full_data.drop(columns=["group"])
+    
+    # Сохраняем массив субъектов для групповой разбивки
+    groups = full_data["subject"].values
+    
+    # Удаляем лишние колонки из признаков
+    X = full_data.drop(columns=["group", "subject"]) 
     X = pd.get_dummies(X, columns=["event_type"], prefix="event")
-    return X, y
+    
+    return X, y, groups
 
 
-
-def train_evaluate_models(X, y, models):
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
-    )
+def train_evaluate_models(X, y, groups, models):
+    # Используем GroupShuffleSplit для предотвращения утечки данных (data leakage)
+    gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    train_idx, test_idx = next(gss.split(X, y, groups))
+    
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -99,7 +108,6 @@ def train_evaluate_models(X, y, models):
             trained_models[name] = (model, scaler)
         else:
             model.fit(X_train, y_train)
-            #y_pred = model.predict(X_test)
             
             y_probs = model.predict_proba(X_test)[:, 1]
             threshold = 0.45 # порог HC/Ocd
@@ -120,7 +128,6 @@ def train_evaluate_models(X, y, models):
     return results, trained_models, (X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled)
 
 
-
 def print_stimulus_importance_rf(model, feature_names):
     importances = model.feature_importances_
     event_indices = [(i, name) for i, name in enumerate(feature_names) if name.startswith("event_")]
@@ -131,8 +138,8 @@ def print_stimulus_importance_rf(model, feature_names):
     for idx, name in sorted(event_indices, key=lambda x: importances[x[0]], reverse=True):
         print(f"{name}: {importances[idx]:.6f}")
 
-def print_stimulus_coefficients_lr(model, feature_names, scaler=None):
 
+def print_stimulus_coefficients_lr(model, feature_names, scaler=None):
     coef = model.coef_[0]
     event_indices = [(i, name) for i, name in enumerate(feature_names) if name.startswith("event_")]
     if not event_indices:
@@ -142,6 +149,7 @@ def print_stimulus_coefficients_lr(model, feature_names, scaler=None):
     print("\n=== Коэффициенты логистической регрессии для стимулов ===")
     for idx, name in sorted_events:
         print(f"{name}: {coef[idx]:.6f}")
+
 
 def print_stimulus_importance_xgb(model, feature_names):
     """Feature importance для XGBoost (как у Random Forest)"""
@@ -157,20 +165,6 @@ def print_stimulus_importance_xgb(model, feature_names):
     for idx, name in sorted(event_indices, key=lambda x: importances[x[0]], reverse=True):
         print(f"{name}: {importances[idx]:.6f}")
 
-"""
-def print_stimulus_importance_svm(model, X_test, y_test, feature_names):
-    perm_importance = permutation_importance(
-        model, X_test, y_test, n_repeats=10, random_state=42, scoring='accuracy'
-    )
-    importances = perm_importance.importances_mean
-    event_indices = [(i, name) for i, name in enumerate(feature_names) if name.startswith("event_")]
-    if not event_indices:
-        print("Нет признаков event_* для анализа важности.")
-        return
-    print("\n=== Важность стимулов (SVM, permutation importance) ===")
-    for idx, name in sorted(event_indices, key=lambda x: importances[x[0]], reverse=True):
-        print(f"{name}: {importances[idx]:.6f}")
-"""
 
 def optimize_xgboost(X_train, y_train, X_test, y_test):
     """Подбор гиперпараметров XGBoost с помощью GridSearchCV"""
@@ -207,8 +201,8 @@ def optimize_xgboost(X_train, y_train, X_test, y_test):
     
     return best
 
-def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
 
+def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
     importances = model.feature_importances_
     ch_imp = {}
     for name, imp in zip(feature_names, importances):
@@ -220,10 +214,9 @@ def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
             ch_imp[ch_num] = ch_imp.get(ch_num, 0.0) + imp
     return ch_imp
 
-def plot_channel_importance_topomap(ch_importance, model_name, n_channels=64, 
-                                    montage_name='biosemi64', save_path=None): # biosemi64 GSN-HydroCel-64_1.0
 
- 
+def plot_channel_importance_topomap(ch_importance, model_name, n_channels=64, 
+                                    montage_name='biosemi64', save_path=None): 
     importance_list = [ch_importance.get(i, 0.0) for i in range(n_channels)]
     
     # montage и координаты
@@ -276,9 +269,9 @@ def plot_channel_importance_topomap(ch_importance, model_name, n_channels=64,
         print(f"Сохранено: {save_path}")
     plt.show()
 
+
 def plot_channel_importance_for_models(trained_models, feature_names, 
                                        n_channels=64, save_dir=None):
-
     for name, (model, _) in trained_models.items():
         if hasattr(model, 'feature_importances_'):
             ch_imp = aggregate_channel_importance(model, feature_names)
@@ -291,19 +284,22 @@ def plot_channel_importance_for_models(trained_models, feature_names,
             else:
                 print(f"Для модели {name} не найдены признаки каналов.")
 
+
 if __name__ == "__main__":
 
     print("Загрузка данных...")
     full_data = load_and_filter_data(EPOCHS_DIR, SACCADE_WINDOW)
     print(f"Загружено строк: {len(full_data)}")
     print(f"Распределение групп:\n{full_data['group'].value_counts()}")
-    X, y = prepare_features_labels(full_data)
+    
+    # Получаем X, y и массив групп (ID субъектов)
+    X, y, groups = prepare_features_labels(full_data)
     print(f"Размер X: {X.shape}")
+    print(f"Количество уникальных субъектов: {len(np.unique(groups))}")
 
     models = {
         "RandomForest": RandomForestClassifier(n_estimators=200, random_state=RANDOM_STATE, n_jobs=-1)
     }
-    
     
     models["XGBoost"] = xgb.XGBClassifier(
         n_estimators=200,
@@ -317,21 +313,22 @@ if __name__ == "__main__":
         n_jobs=-1
     )
 
-    results, trained_models, splits = train_evaluate_models(X, y, models)
+    # Передаем groups в функцию обучения
+    results, trained_models, splits = train_evaluate_models(X, y, groups, models)
     X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled = splits
     feature_names = X.columns.tolist()
 
-    #RandomForest
+    # RandomForest
     if "RandomForest" in trained_models:
         rf_model = trained_models["RandomForest"][0]
         print_stimulus_importance_rf(rf_model, feature_names)
     
-    #XGBoost
+    # XGBoost
     if "XGBoost" in trained_models:
         xgb_model = trained_models["XGBoost"][0]
         print_stimulus_importance_xgb(xgb_model, feature_names)
 
-    # Параметры:64 канала (ch0..ch63) 
+    # Параметры: 64 канала (ch0..ch63) 
     N_CHANNELS = 64
     save_dir = Path(__file__).parent / "topomaps"
     save_dir.mkdir(exist_ok=True)
@@ -361,4 +358,5 @@ if __name__ == "__main__":
     )
     if importance_df is not None:
         importance_df.to_csv("svm_stimulus_importance.csv", index=False)
-        print("\n✓ Результаты сохранены в 'svm_stimulus_importance.csv'")'''
+        print("\n✓ Результаты сохранены в 'svm_stimulus_importance.csv'")
+    '''
