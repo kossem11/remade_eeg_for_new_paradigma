@@ -26,7 +26,7 @@ import xgboost as xgb
 MNE_AVAILABLE = True
 
 # EPOCHS_DIR = PROCESED_DIR / "epochs"           
-SACCADE_WINDOW = "saccade_window_2" # саккадическое окно
+SACCADE_WINDOW = "saccade_window_1" # саккадическое окно
 FEATURE_SUFFIXES = ["_mean", "_std", "_auc"] # фитчи с каналов 
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
@@ -75,11 +75,7 @@ def load_and_filter_data(data_dir, saccade_window):
 def prepare_features_labels(full_data):
     # one-hot encoding для event_type.
     y = (full_data["group"] == "OCD").astype(int)
-    
-    # Сохраняем массив субъектов для групповой разбивки
     groups = full_data["subject"].values
-    
-    # Удаляем лишние колонки из признаков
     X = full_data.drop(columns=["group", "subject"]) 
     X = pd.get_dummies(X, columns=["event_type"], prefix="event")
     
@@ -87,7 +83,6 @@ def prepare_features_labels(full_data):
 
 
 def train_evaluate_models(X, y, groups, models):
-    # Используем GroupShuffleSplit для предотвращения утечки данных (data leakage)
     gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     train_idx, test_idx = next(gss.split(X, y, groups))
     
@@ -207,9 +202,8 @@ def aggregate_channel_importance(model, feature_names, channel_prefix='ch'):
     ch_imp = {}
     for name, imp in zip(feature_names, importances):
         if name.startswith(channel_prefix):
-            # Извлекаем номер канала из "ch123_mean"
             parts = name.split('_')
-            ch_str = parts[0]          # "ch123"
+            ch_str = parts[0]          
             ch_num = int(ch_str[len(channel_prefix):])  # 123
             ch_imp[ch_num] = ch_imp.get(ch_num, 0.0) + imp
     return ch_imp
@@ -292,7 +286,6 @@ if __name__ == "__main__":
     print(f"Загружено строк: {len(full_data)}")
     print(f"Распределение групп:\n{full_data['group'].value_counts()}")
     
-    # Получаем X, y и массив групп (ID субъектов)
     X, y, groups = prepare_features_labels(full_data)
     print(f"Размер X: {X.shape}")
     print(f"Количество уникальных субъектов: {len(np.unique(groups))}")
@@ -313,7 +306,6 @@ if __name__ == "__main__":
         n_jobs=-1
     )
 
-    # Передаем groups в функцию обучения
     results, trained_models, splits = train_evaluate_models(X, y, groups, models)
     X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled = splits
     feature_names = X.columns.tolist()
